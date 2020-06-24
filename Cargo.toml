@@ -1,0 +1,25 @@
+[package]
+name = "megumax"
+version = "0.1.0"
+authors = ["boomber"]
+edition = "2018"
+description = "Simple CLI tool for search-and-replace across the entire project"
+readme = "README.md"
+repository = "https://github.com/oOBoomberOo/megumax"
+license = "MIT"
+keywords = ["megumin", "cli", "replace", "template"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "megu"
+path = "src/main.rs"
+
+[dependencies]
+structopt = "0.3"
+serde = { version = "1", features = ["derive"] }
+toml = "0.5"
+thiserror = "1"
+log = "0.4"
+env_logger = "0.7"
+shellexpand = "2.0.0"
+ignore = "0.4.16"
