@@ -1,6 +1,6 @@
 # Megumax
 
-Megumax is a simple CLI tool for quickly generating a template project templatew ith simple search and replace functionality.
+Megumax is a simple CLI tool for quickly generating a template project template with simple search and replace functionality.
 
 The original intention for this program is for developing minecraft datapack but the program should work anywhere else as well.
 
