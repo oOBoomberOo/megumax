@@ -1,6 +1,6 @@
 [package]
 name = "megumax"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["boomber"]
 edition = "2018"
 description = "Simple CLI tool for search-and-replace across the entire project"

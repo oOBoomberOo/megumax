@@ -2,6 +2,7 @@ use log::debug;
 use path_dedot::ParseDot;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use super::Replacer;
 
 pub fn ensure_parent<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
 	let path = path.as_ref();
@@ -64,6 +65,24 @@ impl Asset {
 	pub fn copy<P: AsRef<Path>>(&self, path: P) -> std::io::Result<u64> {
 		ensure_parent(&path)?;
 		std::fs::copy(&self.source, path)
+	}
+
+	pub fn metadata(&self) -> Replacer {
+		let mut result = Replacer::default();
+
+		if let Some(filename) = self.source.file_name() {
+			result.insert("filename", filename.to_string_lossy());
+		}
+
+		if let Some(filestem) = self.source.file_stem() {
+			result.insert("filestem", filestem.to_string_lossy());
+		}
+
+		if let Some(extension) = self.source.extension() {
+			result.insert("extension", extension.to_string_lossy());
+		}
+
+		result
 	}
 }
 

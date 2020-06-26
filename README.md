@@ -92,3 +92,9 @@ And since this is a relative path, accessing parent or even a whole another dire
 
 3. `values`
 This is a list of "replacer" which will create multiple instance of template. Each generated template will apply the replacer specified in the template list __and__ the master replacer. (The one specified under `[keys]` section)
+
+## Pre-defined keys
+
+- `{{filename}}`: the name of the current file.
+- `{{filestem}}`: the name of the current file __without__ file extension.
+- `{{extension}}`: the extension of the current file.

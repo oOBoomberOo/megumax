@@ -23,11 +23,21 @@ impl Replacer {
 		handle.apply(&self)
 	}
 
+	/// Inserting a key and value pair into this replacer.  
+	/// Note that this will surround the key with braces first.
 	pub fn insert(&mut self, key: impl Into<String>, value: impl Into<String>) -> Option<String> {
 		let key = key.into();
 		let value = value.into();
 		let (key, value) = surround_key_with_braces((key, value));
 		self.keys.insert(key, value)
+	}
+
+	/// Create a new Replacer where its content is a merge between two replacers. Note that duplicate key will be replaced.
+	pub fn merge(&self, other: &Replacer) -> Self {
+		let other = other.keys.clone().into_iter();
+		let mut keys = self.keys.clone();
+		keys.extend(other);
+		Self { keys }
 	}
 }
 

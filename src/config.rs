@@ -104,7 +104,8 @@ impl Config {
 			output.display()
 		);
 		let asset = new_asset(path)?;
-		self.file_helper(&asset, &output, &Replacer::default())?;
+		let replacer = asset.metadata();
+		self.file_helper(&asset, &output, &replacer)?;
 		Ok(())
 	}
 
@@ -130,16 +131,22 @@ impl Config {
 
 	pub fn template_file(&self, path: &Path, matches: Vec<&Template>) -> Result<()> {
 		let asset = new_asset(path)?;
+		let metadata = asset.metadata();
 
 		for template in matches {
 			for replacer in template.replacers() {
+				let replacer = metadata.merge(replacer);
+
+				debug!("{:#?}", replacer);
+
 				let output = template
 					.outpath(path, &replacer)
 					.ok_or_else(|| Error::Parent(path.to_owned()))?;
 				let output = self.out_path(output)?;
 				let output =
 					normalize_path(&output).map_err(|err| Error::Io(err, output.to_path_buf()))?;
-				self.file_helper(&asset, &output, replacer)?;
+
+				self.file_helper(&asset, &output, &replacer)?;
 			}
 		}
 
