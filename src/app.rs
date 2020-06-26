@@ -1,23 +1,12 @@
-use super::config::CompiledConfig as Config;
+use super::config::{Config, Result};
 use super::Command;
 use ignore::{DirEntry, Walk, WalkBuilder};
-use log::{debug, error};
+use log::{debug, error, info};
 use std::path::Path;
-use thiserror::Error;
-
-pub type Result<T> = std::result::Result<T, Error>;
-
-#[derive(Debug, Error)]
-pub enum Error {
-	#[error(transparent)]
-	Io(#[from] std::io::Error),
-
-	#[error(transparent)]
-	Config(#[from] super::config::Error),
-}
 
 pub fn build(config: Config, opts: Command) -> Result<()> {
-	let root = &config.src;
+	info!("Begin building project...");
+	let root = config.source();
 	let files = Files::new(root, opts.hidden);
 
 	config.clear_build_dir()?;
@@ -26,31 +15,9 @@ pub fn build(config: Config, opts: Command) -> Result<()> {
 		let path = entry.path();
 
 		if path.is_file() {
-			read_or_copy(path, &config)?;
+			config.on(path)?;
 		}
 	}
-
-	Ok(())
-}
-
-pub fn read_or_copy<P: AsRef<Path>>(path: P, config: &Config) -> Result<()> {
-	let path = path.as_ref();
-	let content = std::fs::read_to_string(&path);
-
-	match content {
-		// A valid UTF-8 file, apply search-and-replace behavior
-		Ok(content) => {
-			let result = config.replace(content);
-			config.write(path, result)?;
-		}
-		// The file is not in UTF-8 encoding, so we treat it as non-text file and just copy the content.
-		Err(err) if err.kind() == std::io::ErrorKind::InvalidData => {
-			let from = path;
-			let to = config.out_path(path)?;
-			std::fs::copy(from, to)?;
-		}
-		Err(err) => return Err(err.into()),
-	};
 
 	Ok(())
 }

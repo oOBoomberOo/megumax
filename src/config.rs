@@ -1,8 +1,8 @@
-use super::toml::Config;
-use log::error;
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::Write;
+use super::toml::{consts::current_dir, ConfigFormat};
+use super::utils::{normalize_path, remove_all, Asset, AssetKind};
+use super::{Handle, Replacer, Template};
+use glob::PatternError;
+use log::{debug, error, info};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -21,18 +21,25 @@ pub enum Error {
 
 	#[error("Unable to strip prefix {1} from {0}")]
 	StripPrefix(PathBuf, PathBuf),
+
+	#[error("Cannot find parent path for {0}")]
+	Parent(PathBuf),
+
+	#[error(transparent)]
+	Pattern(#[from] PatternError),
 }
 
-pub fn load_config<P: AsRef<Path>>(path: P) -> Result<CompiledConfig> {
+pub fn load_config<P: AsRef<Path>>(path: P) -> Result<Config> {
 	let path = path.as_ref();
+	info!("Load config from {}", path.display());
 	let content = read_from_path(&path)?;
 	load_from_string(&content)
 }
 
-pub fn load_from_string(content: &str) -> Result<CompiledConfig> {
-	let config = toml::from_str(content)?;
-	let result = CompiledConfig::from_config(config);
-	Ok(result)
+pub fn load_from_string(content: &str) -> Result<Config> {
+	let format: ConfigFormat = toml::from_str(content)?;
+	debug!("Config Content: {:#?}", format);
+	format.compile()
 }
 
 pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<String> {
@@ -40,63 +47,154 @@ pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<String> {
 	std::fs::read_to_string(&path).map_err(|_| Error::MissingConfig(path.to_path_buf()))
 }
 
-pub struct CompiledConfig {
-	pub keys: HashMap<String, String>,
-	pub src: PathBuf,
-	pub output: PathBuf,
+#[derive(Debug)]
+pub struct Config {
+	pub master_keys: Replacer,
+	pub src: Option<PathBuf>,
+	pub build: PathBuf,
+	pub templates: Vec<Template>,
 }
 
-impl CompiledConfig {
-	pub fn replace(&self, content: String) -> String {
-		self.keys
-			.iter()
-			.fold(content, |content, (from, to)| content.replace(from, to))
+impl Config {
+	pub fn new(
+		master_keys: Replacer,
+		src: Option<PathBuf>,
+		build: PathBuf,
+		templates: Vec<Template>,
+	) -> Self {
+		Self {
+			master_keys,
+			src,
+			build,
+			templates,
+		}
 	}
 
-	pub fn write<P: AsRef<Path>>(&self, path: P, content: String) -> Result<()> {
-		let output = self.out_path(path)?;
-		create_file(&output, content).map_err(|err| Error::Io(err, output))
+	pub fn source(&self) -> PathBuf {
+		self.src.to_owned().unwrap_or_else(current_dir)
 	}
 
-	pub fn clear_build_dir(&self) -> Result<()> {
-		let no_output_dir = !self.output.exists();
-		if no_output_dir {
-			return Ok(());
+	pub fn templates(&self) -> impl Iterator<Item = &Template> {
+		self.templates.iter()
+	}
+
+	pub fn match_templates<P: AsRef<Path>>(&self, path: P) -> Vec<&Template> {
+		self.templates().filter(|t| t.match_path(&path)).collect()
+	}
+
+	pub fn on<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+		let path = path.as_ref();
+		info!("Handling {}...", path.display());
+		let matches = self.match_templates(&path);
+
+		if matches.is_empty() {
+			debug!("Doesn't have any match.");
+			self.normal_file(&path)
+		} else {
+			debug!("Found {} matches.", matches.len());
+			self.template_file(&path, matches)
+		}
+	}
+
+	pub fn normal_file(&self, path: &Path) -> Result<()> {
+		let output = self.out_path(&path)?;
+		info!(
+			"Generate file from {} to {}",
+			path.display(),
+			output.display()
+		);
+		let asset = new_asset(path)?;
+		self.file_helper(&asset, &output, &Replacer::default())?;
+		Ok(())
+	}
+
+	pub fn file_helper(&self, asset: &Asset, path: &Path, replacer: &Replacer) -> Result<()> {
+		match &asset.kind {
+			AssetKind::Text(content) => {
+				let content = Handle::from(content);
+				let replaced = replacer.apply(content);
+				let master_key = self.replace(replaced);
+				master_key
+					.write_to(&path)
+					.map_err(|err| Error::Io(err, path.to_owned()))?;
+			}
+			AssetKind::Binary => {
+				asset
+					.copy(path)
+					.map_err(|err| Error::Io(err, path.to_owned()))?;
+			}
 		}
 
-		std::fs::remove_dir_all(&self.output).map_err(|err| Error::Io(err, self.output.clone()))
+		Ok(())
+	}
+
+	pub fn template_file(&self, path: &Path, matches: Vec<&Template>) -> Result<()> {
+		let asset = new_asset(path)?;
+
+		for template in matches {
+			for replacer in template.replacers() {
+				let output = template
+					.outpath(path, &replacer)
+					.ok_or_else(|| Error::Parent(path.to_owned()))?;
+				let output = self.out_path(output)?;
+				let output =
+					normalize_path(&output).map_err(|err| Error::Io(err, output.to_path_buf()))?;
+				self.file_helper(&asset, &output, replacer)?;
+			}
+		}
+
+		Ok(())
+	}
+
+	pub fn replace(&self, content: Handle) -> Handle {
+		self.master_keys.apply(content)
 	}
 
 	pub fn relative_path<'p>(&self, path: &'p Path) -> Result<&'p Path> {
-		strip_prefix(path, &self.src)
+		match &self.src {
+			Some(source) => strip_prefix(path, source),
+			None => Ok(path),
+		}
 	}
 
 	pub fn out_path<P: AsRef<Path>>(&self, path: P) -> Result<PathBuf> {
 		let stripped = self.relative_path(path.as_ref())?;
-		let result = self.output.join(stripped);
+		let result = self.build.join(stripped);
 		Ok(result)
 	}
+}
 
-	pub fn from_config(config: Config) -> Self {
-		let (keys, build) = config.compile();
-		let (output, src) = build.compile();
-		Self { keys, src, output }
+impl Config {
+	pub fn clear_build_dir(&self) -> Result<()> {
+		info!("Clearing build-dir...");
+		if !self.build.exists() {
+			info!("Build directory doesn't exists, skipped.");
+			return Ok(());
+		}
+
+		self.clean_build_dir_helper()
+			.map_err(|err| Error::Io(err, self.build.to_owned()))
+	}
+
+	fn clean_build_dir_helper(&self) -> std::io::Result<()> {
+		// Clear directory's content but not the directory itself
+		for entry in self.build.read_dir()? {
+			let path = entry?.path();
+			info!("Removing {}...", path.display());
+			remove_all(path)?;
+		}
+
+		Ok(())
 	}
 }
 
-fn strip_prefix<'p>(path: &'p Path, prefix: &Path) -> Result<&'p Path> {
-	path.strip_prefix(prefix)
-		.map_err(|_| Error::StripPrefix(path.to_path_buf(), prefix.to_owned()))
+pub fn strip_prefix<'p, P: AsRef<Path>>(path: &'p Path, prefix: P) -> Result<&'p Path> {
+	path.strip_prefix(&prefix)
+		.map_err(|_| Error::StripPrefix(path.to_path_buf(), prefix.as_ref().to_path_buf()))
 }
 
-pub fn create_file<P: AsRef<Path>>(path: P, content: String) -> std::io::Result<()> {
-	if let Some(parent) = path.as_ref().parent() {
-		std::fs::create_dir_all(parent)?;
-	}
-	let mut file = File::create(path)?;
-	let buffer = content.as_bytes();
-	file.write_all(buffer)?;
-	Ok(())
+pub fn new_asset(path: &Path) -> Result<Asset> {
+	Asset::from_path(path).map_err(|err| Error::Io(err, path.to_owned()))
 }
 
 pub fn resolve_symbol(path: PathBuf) -> PathBuf {
@@ -108,6 +206,7 @@ pub fn resolve_symbol(path: PathBuf) -> PathBuf {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use pretty_assertions::assert_eq;
 
 	#[test]
 	fn replace_content() {
@@ -136,7 +235,7 @@ mod tests {
 		give @s potion{Potion: "minecraft:water", CustomModelData: {{model.dye_bottle}}}
 		"#;
 
-		let result = config.replace(content.to_owned());
+		let result = config.replace(content.into());
 		let expect = r#"
 		say This is Colorful Cauldron version 1.0.0
 
@@ -147,7 +246,7 @@ mod tests {
 		give @s potion{Potion: "minecraft:water", CustomModelData: 8080005}
 		"#;
 
-		assert_eq!(result, expect);
+		assert_eq!(result, expect.into());
 	}
 
 	#[test]

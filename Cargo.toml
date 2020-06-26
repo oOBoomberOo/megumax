@@ -1,6 +1,6 @@
 [package]
 name = "megumax"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["boomber"]
 edition = "2018"
 description = "Simple CLI tool for search-and-replace across the entire project"
@@ -23,3 +23,8 @@ log = "0.4"
 env_logger = "0.7"
 shellexpand = "2.0.0"
 ignore = "0.4.16"
+glob = "0.3.0"
+path-dedot = { version = "3.0.0", features = ["lazy_static_cache"] }
+
+[dev-dependencies]
+pretty_assertions = "0.6.1"

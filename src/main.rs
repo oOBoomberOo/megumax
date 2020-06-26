@@ -3,7 +3,13 @@ use structopt::StructOpt;
 
 mod app;
 mod config;
+mod replacer;
+mod template;
 mod toml;
+mod utils;
+
+use replacer::{Handle, Replacer};
+use template::Template;
 
 /// A rust CLI that apply global search-and-replace across the entire project when building
 #[derive(Debug, StructOpt)]
@@ -26,7 +32,7 @@ fn main() {
 	}
 }
 
-fn run(opts: Command) -> Result<(), app::Error> {
+fn run(opts: Command) -> config::Result<()> {
 	let config = config::load_config(&opts.config)?;
 	app::build(config, opts)?;
 	Ok(())
