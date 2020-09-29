@@ -1,0 +1,118 @@
+name: binary-release
+
+on:
+  push:
+    branches:
+      - master
+    tags: 'v*'
+
+env:
+  RELEASE_BIN: megu
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Initialize Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          draft: true
+          prerelease: false
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      
+      - name: Build Binary
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --version --release --all-features
+
+      - name: Package Binary
+        run: 7z a -ttar -so -an ./target/release/${{ env.RELEASE_BIN }} | 7z a -si ./build.tar.gz
+
+      - name: Upload File
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./build.tar.gz
+          asset_name: ${{ env.RELEASE_BIN }}-linux.tar.gz
+          asset_content_type: application/gzip
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      
+      - name: Build Binary
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --version --release --all-features
+
+      - name: Package Binary
+        run: 7z a -tzip ./build.zip ./target/release/${{ env.RELEASE_BIN }}.exe
+
+      - name: Upload File
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./build.zip
+          asset_name: ${{ env.RELEASE_BIN }}-windows.zip
+          asset_content_type: application/gzip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Install Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      
+      - name: Build Binary
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --version --release --all-features
+
+      - name: Install p7zip
+        run: brew install p7zip
+
+      - name: Package Binary
+        run: 7z a -tzip ./build.zip ./target/release/${{ env.RELEASE_BIN }}
+
+      - name: Upload File
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./build.zip
+          asset_name: ${{ env.RELEASE_BIN }}-mac.zip
+          asset_content_type: application/gzip
