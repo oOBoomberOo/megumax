@@ -28,3 +28,6 @@ path-dedot = { version = "3.0.0", features = ["lazy_static_cache"] }
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"
+
+[workspace]
+members = [ "./path-solver" ]
