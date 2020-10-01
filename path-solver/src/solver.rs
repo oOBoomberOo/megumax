@@ -8,10 +8,9 @@ pub struct Solver<'a> {
 }
 
 impl<'a> Solver<'a> {
-	pub fn new(list: Vec<&'a [String]>, keys: Vec<String>) -> Option<Self> {
+	pub fn new(list: Vec<&'a [String]>, keys: Vec<String>) -> Self {
 		let inner = Variant::new(list);
-		let result = Self { inner, keys };
-		Some(result)
+		Self { inner, keys }
 	}
 }
 
@@ -47,7 +46,7 @@ mod tests {
 
 		let keys = &["color".into()];
 		let list = pool.intersect(keys).unwrap();
-		let solver = Solver::new(list, keys.to_vec()).unwrap();
+		let solver = Solver::new(list, keys.to_vec());
 
 		let result: Vec<Template> = solver.collect();
 		let expect = vec![
@@ -63,7 +62,7 @@ mod tests {
 		let pool = prepare_pool();
 		let keys = &["shape".into()];
 		let list = pool.intersect(keys).unwrap();
-		let solver = Solver::new(list, keys.to_vec()).unwrap();
+		let solver = Solver::new(list, keys.to_vec());
 
 		let result: Vec<Template> = solver.collect();
 		let expect = vec![
@@ -79,7 +78,7 @@ mod tests {
 		let pool = prepare_pool();
 		let keys = &["color".into(), "shape".into()];
 		let list = pool.intersect(keys).unwrap();
-		let solver = Solver::new(list, keys.to_vec()).unwrap();
+		let solver = Solver::new(list, keys.to_vec());
 
 		let result: Vec<Template> = solver.collect();
 		let expect = vec![
@@ -104,7 +103,7 @@ mod tests {
 	fn empty_input() {
 		let keys = vec![];
 		let list = vec![];
-		let solver = Solver::new(list, keys).unwrap();
+		let solver = Solver::new(list, keys);
 
 		let result: Vec<_> = solver.collect();
 		let expect = vec![Template::default()];

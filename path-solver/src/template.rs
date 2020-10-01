@@ -1,5 +1,6 @@
 use crate::resource::Resources;
 use crate::solver::Solver;
+use crate::error::KeyLookUpError;
 use regex::Regex;
 use std::collections::HashMap;
 use std::iter::FromIterator;
@@ -67,15 +68,16 @@ impl Pool {
 		list.push(value.into());
 	}
 
-	pub fn intersect(&self, keys: &[String]) -> Option<Vec<&[String]>> {
+	pub fn intersect(&self, keys: &[String]) -> Result<Vec<&[String]>, KeyLookUpError> {
 		let mut result = Vec::new();
 
 		for key in keys {
-			let variants = self.get(key)?;
+			let variants = self.get(key)
+				.ok_or_else(|| KeyLookUpError::new(key))?;
 			result.push(variants);
 		}
 
-		Some(result)
+		Ok(result)
 	}
 }
 
@@ -89,13 +91,13 @@ impl Pool {
 			.collect()
 	}
 
-	pub fn template_resources<P: Into<String>>(&self, path: P) -> Option<Resources> {
+	pub fn template_resources<P: Into<String>>(&self, path: P) -> Result<Resources, KeyLookUpError> {
 		let path = path.into();
 		let keys = self.capture(&path);
 		let list = self.intersect(&keys)?;
-		let inner = Solver::new(list, keys)?;
+		let inner = Solver::new(list, keys);
 		let result = Resources::new(path, inner);
-		Some(result)
+		Ok(result)
 	}
 }
 

@@ -12,6 +12,10 @@ impl<'a> Resource<'a> {
 	pub fn new(path: PathBuf, template: Template<'a>) -> Self {
 		Self { path, template }
 	}
+
+	pub fn replace(&self, content: &str) -> String {
+		self.template.replace(content)
+	}
 }
 
 pub struct Resources<'a> {
