@@ -15,11 +15,11 @@ impl<'a> Solver<'a> {
 }
 
 impl<'a> Iterator for Solver<'a> {
-	type Item = Template<'a>;
+	type Item = Template;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		let keys = self.keys.iter().cloned();
-		let variant = self.inner.next()?.into_iter().map(|s| s.as_str());
+		let variant = self.inner.next()?.into_iter().map(|s| s.to_string());
 		let result = keys.zip(variant).collect();
 		Some(result)
 	}
@@ -50,8 +50,8 @@ mod tests {
 
 		let result: Vec<Template> = solver.collect();
 		let expect = vec![
-			Template::default().insert("color".into(), "red"),
-			Template::default().insert("color".into(), "blue"),
+			Template::default().insert("color".into(), "red".into()),
+			Template::default().insert("color".into(), "blue".into()),
 		];
 
 		assert_eq!(result, expect);
@@ -66,8 +66,8 @@ mod tests {
 
 		let result: Vec<Template> = solver.collect();
 		let expect = vec![
-			Template::default().insert("shape".into(), "circle"),
-			Template::default().insert("shape".into(), "square"),
+			Template::default().insert("shape".into(), "circle".into()),
+			Template::default().insert("shape".into(), "square".into()),
 		];
 
 		assert_eq!(result, expect);
@@ -83,17 +83,17 @@ mod tests {
 		let result: Vec<Template> = solver.collect();
 		let expect = vec![
 			Template::default()
-				.insert("color".into(), "red")
-				.insert("shape".into(), "circle"),
+				.insert("color".into(), "red".into())
+				.insert("shape".into(), "circle".into()),
 			Template::default()
-				.insert("color".into(), "red")
-				.insert("shape".into(), "square"),
+				.insert("color".into(), "red".into())
+				.insert("shape".into(), "square".into()),
 			Template::default()
-				.insert("color".into(), "blue")
-				.insert("shape".into(), "circle"),
+				.insert("color".into(), "blue".into())
+				.insert("shape".into(), "circle".into()),
 			Template::default()
-				.insert("color".into(), "blue")
-				.insert("shape".into(), "square"),
+				.insert("color".into(), "blue".into())
+				.insert("shape".into(), "square".into()),
 		];
 
 		assert_eq!(result, expect);

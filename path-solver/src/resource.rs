@@ -3,13 +3,13 @@ use crate::template::Template;
 use std::path::PathBuf;
 
 #[derive(Debug)]
-pub struct Resource<'a> {
+pub struct Resource {
 	pub path: PathBuf,
-	pub template: Template<'a>,
+	pub template: Template,
 }
 
-impl<'a> Resource<'a> {
-	pub fn new(path: PathBuf, template: Template<'a>) -> Self {
+impl Resource {
+	pub fn new(path: PathBuf, template: Template) -> Self {
 		Self { path, template }
 	}
 
@@ -30,7 +30,7 @@ impl<'a> Resources<'a> {
 }
 
 impl<'a> Iterator for Resources<'a> {
-	type Item = Resource<'a>;
+	type Item = Resource;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		let template = self.inner.next()?;

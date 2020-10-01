@@ -6,12 +6,12 @@ use std::collections::HashMap;
 use std::iter::FromIterator;
 
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct Template<'a> {
-	keys: HashMap<String, &'a str>,
+pub struct Template {
+	keys: HashMap<String, String>,
 }
 
-impl<'a> Template<'a> {
-	pub fn new(keys: HashMap<String, &'a str>) -> Self {
+impl Template {
+	pub fn new(keys: HashMap<String, String>) -> Self {
 		Self { keys }
 	}
 
@@ -21,18 +21,18 @@ impl<'a> Template<'a> {
 			.fold(content.to_string(), |f, (k, v)| f.replace(k, v))
 	}
 
-	pub fn insert(mut self, key: String, value: &'a str) -> Self {
+	pub fn insert(mut self, key: String, value: String) -> Self {
 		self.set(key, value);
 		self
 	}
 
-	pub fn set(&mut self, key: String, value: &'a str) {
+	pub fn set(&mut self, key: String, value: String) {
 		self.keys.insert(key, value);
 	}
 }
 
-impl<'a> FromIterator<(String, &'a str)> for Template<'a> {
-	fn from_iter<T: IntoIterator<Item = (String, &'a str)>>(iter: T) -> Self {
+impl FromIterator<(String, String)> for Template {
+	fn from_iter<T: IntoIterator<Item = (String, String)>>(iter: T) -> Self {
 		let keys = iter.into_iter().collect();
 		Self::new(keys)
 	}
