@@ -92,7 +92,7 @@ impl Link {
 		File::create(path).with_context(|| format!("`{}` cannot be created", path.display()))
 	}
 
-	pub fn to_resources<'a>(&self, pool: &'a Pool) -> Result<impl Iterator<Item = Resource<'a>>> {
+	pub fn to_resources<'a>(&self, pool: &'a Pool) -> Result<impl Iterator<Item = Resource> + 'a> {
 		let path = Self::stringify_path(&self.to)?;
 		pool.template_resources(path)
 			.with_context(|| format!("Looking up keyword in `{}`", path))

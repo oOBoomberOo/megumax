@@ -1,6 +1,5 @@
 use super::config::{resolve_symbol, Config};
-use anyhow::Result;
-use path_solver::Pool;
+use path_solver::{Pool, Template};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -11,16 +10,18 @@ pub mod consts;
 pub struct ConfigFormat {
 	#[serde(default)]
 	pub template: TemplateFormat,
+	#[serde(default)]
+	pub keys: KeyFormat,
 	pub build: BuildFormat,
 }
 
 impl ConfigFormat {
-	pub fn compile(self) -> Result<Config> {
+	pub fn compile(self) -> Config {
 		log::debug!("Compile config format...");
 		let (src, build) = self.build.compile();
-		let template = self.template.compile()?;
-		let result = Config::new(src, build, template);
-		Ok(result)
+		let template = self.template.compile();
+		let keys = self.keys.compile();
+		Config::new(src, build, template, keys)
 	}
 }
 
@@ -46,7 +47,7 @@ impl BuildFormat {
 pub struct TemplateFormat(HashMap<String, Vec<String>>);
 
 impl TemplateFormat {
-	fn compile(self) -> Result<Pool> {
+	fn compile(self) -> Pool {
 		log::debug!("Compile template format...");
 		let mut pool = Pool::default_rule();
 
@@ -55,6 +56,22 @@ impl TemplateFormat {
 			pool.insert(key, value);
 		}
 
-		Ok(pool)
+		pool
+	}
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct KeyFormat(HashMap<String, String>);
+
+impl KeyFormat {
+	fn compile(self) -> Template {
+		let mut pool = HashMap::with_capacity(self.0.capacity());
+
+		for (key, value) in self.0 {
+			let key = format!("[{}]", key);
+			pool.insert(key, value);
+		}
+
+		Template::new(pool)
 	}
 }

@@ -1,6 +1,6 @@
 use super::toml::ConfigFormat;
 use anyhow::{Context, Result};
-use path_solver::Pool;
+use path_solver::{Pool, Template};
 use std::path::{Path, PathBuf};
 
 pub fn load_config<P: AsRef<Path>>(path: P) -> Result<Config> {
@@ -13,7 +13,8 @@ pub fn load_config<P: AsRef<Path>>(path: P) -> Result<Config> {
 pub fn load_from_string(content: &str) -> Result<Config> {
 	let format: ConfigFormat = toml::from_str(content)?;
 	log::debug!("Config Content: {:#?}", format);
-	format.compile()
+	let config = format.compile();
+	Ok(config)
 }
 
 pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<String> {
@@ -27,14 +28,16 @@ pub struct Config {
 	pub source: PathBuf,
 	pub dest: PathBuf,
 	pub template: Pool,
+	pub keys: Template,
 }
 
 impl Config {
-	pub fn new(src: PathBuf, build: PathBuf, pool: Pool) -> Self {
+	pub fn new(source: PathBuf, dest: PathBuf, template: Pool, keys: Template) -> Self {
 		Self {
-			source: src,
-			dest: build,
-			template: pool,
+			source,
+			dest,
+			template,
+			keys,
 		}
 	}
 }

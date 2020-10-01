@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::core::{Link, Walker};
 use anyhow::{Context, Result};
 use colorful::*;
-use path_solver::Resource;
+use path_solver::{Resource, Template};
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
@@ -32,7 +32,7 @@ pub fn run(config: Config) -> Result<()> {
 		log::info!("  Generate {}:", path.light_yellow());
 
 		for resource in resources {
-			let path = build(&link, resource)?;
+			let path = build(resource, &link, &config.keys)?;
 			log::info!("    {} {}", "✔".light_green(), path.blue());
 		}
 		log::info!("");
@@ -41,7 +41,7 @@ pub fn run(config: Config) -> Result<()> {
 	Ok(())
 }
 
-fn build(link: &Link, resource: Resource) -> Result<String> {
+fn build(resource: Resource, link: &Link, keys: &Template) -> Result<String> {
 	let link = link.with_resource(&resource);
 
 	let mut reader = BufReader::new(link.read()?);
@@ -53,6 +53,7 @@ fn build(link: &Link, resource: Resource) -> Result<String> {
 		.with_context(|| format!("Read from `{}`", link.from.display()))?;
 
 	let content = resource.replace(&buffer);
+	let content = keys.replace(&content);
 	writer
 		.write_all(content.as_bytes())
 		.with_context(|| format!("Write to `{}`", link.to.display()))?;
