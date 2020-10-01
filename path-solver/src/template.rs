@@ -2,7 +2,7 @@ use crate::resource::Resources;
 use crate::solver::Solver;
 use crate::error::KeyLookUpError;
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
@@ -93,7 +93,11 @@ impl Pool {
 
 	pub fn template_resources<P: Into<String>>(&self, path: P) -> Result<Resources, KeyLookUpError> {
 		let path = path.into();
-		let keys = self.capture(&path);
+		let keys = self.capture(&path)
+			.into_iter()
+			.collect::<HashSet<_>>() // De-duplicate keys
+			.into_iter()
+			.collect::<Vec<_>>();
 		let list = self.intersect(&keys)?;
 		let inner = Solver::new(list, keys);
 		let result = Resources::new(path, inner);
