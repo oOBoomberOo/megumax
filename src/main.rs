@@ -1,15 +1,10 @@
+use anyhow::{Context, Result};
+use colorful::*;
+use flexi_logger::{style, Level, Logger};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-mod app;
-mod config;
-mod replacer;
-mod template;
-mod toml;
-mod utils;
-
-use replacer::{Handle, Replacer};
-use template::Template;
+use megumax::{app, config};
 
 /// A rust CLI that apply global search-and-replace across the entire project when building
 #[derive(Debug, StructOpt)]
@@ -21,19 +16,38 @@ pub struct Command {
 	/// Include hidden files and directories in the output
 	#[structopt(long, short = "H")]
 	hidden: bool,
+
+	/// No output printed to stdout
+	#[structopt(long, short)]
+	quiet: bool,
 }
 
 fn main() {
-	env_logger::init();
 	let opts = Command::from_args();
 
 	if let Err(err) = run(opts) {
-		eprintln!("{}", err);
+		eprintln!("{} {:#}", "⚠".red(), err);
 	}
 }
 
-fn run(opts: Command) -> config::Result<()> {
+fn run(opts: Command) -> Result<()> {
+	if !opts.quiet {
+		init_logger().unwrap();
+	}
+
 	let config = config::load_config(&opts.config)?;
-	app::build(config, opts)?;
+	app::run(config)?;
+	Ok(())
+}
+
+fn init_logger() -> Result<()> {
+	Logger::with_str("megumax=info")
+		.format(|w, _, record| match record.level() {
+			Level::Info => write!(w, "{}", record.args()),
+			Level::Error => write!(w, "{} {}", "⚠".red(), record.args()),
+			level => write!(w, "[{}] {}", style(level, level), record.args()),
+		})
+		.start()
+		.with_context(|| "Initializing logger")?;
 	Ok(())
 }

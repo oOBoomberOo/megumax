@@ -1,48 +1,71 @@
-use super::config::{Config, Result};
-use super::Command;
-use ignore::{DirEntry, Walk, WalkBuilder};
-use log::{debug, error, info};
+use crate::config::Config;
+use crate::core::{Link, Walker};
+use anyhow::{Context, Result};
+use colorful::*;
+use path_solver::Resource;
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
-pub fn build(config: Config, opts: Command) -> Result<()> {
-	info!("Begin building project...");
-	let root = config.source();
-	let files = Files::new(root, opts.hidden);
+pub fn run(config: Config) -> Result<()> {
+	log::info!("{}", "Megumax is running...".light_red());
+	log::info!(
+		"  ├─ {} {}",
+		"⬅".green(),
+		config.source.to_string_lossy().blue()
+	);
+	log::info!(
+		"  ╰─ {} {}",
+		"➡".green(),
+		config.dest.to_string_lossy().blue()
+	);
+	log::info!("");
 
+	let files = Walker::from_config(&config);
 	config.clear_build_dir()?;
 
-	for entry in files {
-		let path = entry.path();
+	for link in files {
+		let link = link?;
 
-		if path.is_file() {
-			config.on(path)?;
+		let resources = link.to_resources(&config.template)?.peekable();
+
+		let path = format_path(&link.from);
+		log::info!("  Generate {}:", path.light_yellow());
+
+		for resource in resources {
+			let path = build(&link, resource)?;
+			log::info!("    {} {}", "✔".light_green(), path.blue());
 		}
+		log::info!("");
 	}
 
 	Ok(())
 }
 
-pub struct Files {
-	iter: Walk,
+fn build(link: &Link, resource: Resource) -> Result<String> {
+	let link = link.with_resource(&resource);
+
+	let mut reader = BufReader::new(link.read()?);
+	let mut writer = BufWriter::new(link.create()?);
+
+	let mut buffer = String::new();
+	reader
+		.read_to_string(&mut buffer)
+		.with_context(|| format!("Read from `{}`", link.from.display()))?;
+
+	let content = resource.replace(&buffer);
+	writer
+		.write_all(content.as_bytes())
+		.with_context(|| format!("Write to `{}`", link.to.display()))?;
+
+	Ok(format_path(&link.to))
 }
 
-impl Files {
-	pub fn new<P: AsRef<Path>>(root: P, hidden: bool) -> Self {
-		debug!("Iterate over all files in {}", root.as_ref().display());
-		let iter = WalkBuilder::new(root).hidden(hidden).build();
-		Self { iter }
-	}
-}
-
-impl Iterator for Files {
-	type Item = DirEntry;
-	fn next(&mut self) -> Option<Self::Item> {
-		while let Some(entry) = self.iter.next() {
-			match entry {
-				Ok(entry) => return Some(entry),
-				Err(err) => error!("{}", err),
-			}
-		}
-		None
-	}
+fn format_path(path: &Path) -> String {
+	let components: Vec<String> = path
+		.components()
+		.map(|s| s.as_os_str())
+		.map(|s| s.to_string_lossy())
+		.map(|s| s.to_string())
+		.collect();
+	components.join("/")
 }
