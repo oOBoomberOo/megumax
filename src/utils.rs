@@ -1,8 +1,8 @@
+use super::Replacer;
 use log::debug;
 use path_dedot::ParseDot;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use super::Replacer;
 
 pub fn ensure_parent<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
 	let path = path.as_ref();
