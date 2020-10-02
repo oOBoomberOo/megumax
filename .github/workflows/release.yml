@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - master
-    tags: v*
+    tags:
+      - v*
 
 env:
   RELEASE_BIN: megu
