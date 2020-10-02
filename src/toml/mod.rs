@@ -16,12 +16,12 @@ pub struct ConfigFormat {
 }
 
 impl ConfigFormat {
-	pub fn compile(self) -> Config {
+	pub fn compile(self, path: PathBuf) -> Config {
 		log::debug!("Compile config format...");
 		let (src, build) = self.build.compile();
 		let template = self.template.compile();
 		let keys = self.keys.compile();
-		Config::new(src, build, template, keys)
+		Config::new(src, build, path, template, keys)
 	}
 }
 
