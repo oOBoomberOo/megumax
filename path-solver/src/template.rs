@@ -38,7 +38,7 @@ impl FromIterator<(String, String)> for Template {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Pool {
 	pool: HashMap<String, Vec<String>>,
 	capture_rule: Regex,
