@@ -1,9 +1,13 @@
+use crate::config::Config;
 use anyhow::{Context, Result};
 use ignore::{Walk, WalkBuilder};
 use path_solver::{Pool, Resource};
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use crate::config::Config;
+
+pub mod special {
+	pub const ITERATION_COUNT: &str = "[nth]";
+}
 
 pub struct Walker {
 	source: PathBuf,
@@ -13,7 +17,7 @@ pub struct Walker {
 
 impl Walker {
 	pub fn new(source: PathBuf, destination: PathBuf) -> Self {
-		let iter = WalkBuilder::new(&source).hidden(true).build();
+		let iter = WalkBuilder::new(&source).hidden(false).build();
 		Self {
 			source,
 			destination,
@@ -25,15 +29,9 @@ impl Walker {
 		Self::new(config.source.clone(), config.dest.clone())
 	}
 
-	fn replace_prefix(path: &Path, from: &Path, to: &Path) -> Result<PathBuf> {
-		let rel_path = path.strip_prefix(from)?;
-		let result = to.join(rel_path);
-		Ok(result)
-	}
-
 	fn create_link(&self, path: &Path) -> Result<Link> {
 		let from = path.to_path_buf();
-		let to = Self::replace_prefix(path, &self.source, &self.destination)?;
+		let to = Link::replace_prefix(path, &self.source, &self.destination)?;
 		Ok(Link::new(from, to))
 	}
 
@@ -69,6 +67,7 @@ impl Iterator for Walker {
 	}
 }
 
+#[derive(Debug)]
 pub struct Link {
 	pub from: PathBuf,
 	pub to: PathBuf,
@@ -94,8 +93,18 @@ impl Link {
 
 	pub fn to_resources<'a>(&self, pool: &'a Pool) -> Result<impl Iterator<Item = Resource> + 'a> {
 		let path = Self::stringify_path(&self.to)?;
-		pool.template_resources(path)
-			.with_context(|| format!("Looking up keyword in `{}`", path))
+		let resources = pool
+			.template_resources(path)
+			.with_context(|| format!("Looking up keyword in `{}`", path))?
+			.enumerate()
+			.map(|(n, mut resource)| {
+				resource
+					.template
+					.set(special::ITERATION_COUNT.into(), n.to_string());
+				resource
+			});
+
+		Ok(resources)
 	}
 
 	pub fn with_resource(&self, resource: &Resource) -> Self {
@@ -121,5 +130,11 @@ impl Link {
 		}
 
 		Ok(())
+	}
+
+	pub fn replace_prefix(path: &Path, from: &Path, to: &Path) -> Result<PathBuf> {
+		let rel_path = path.strip_prefix(from)?;
+		let result = to.join(rel_path);
+		Ok(result)
 	}
 }
