@@ -3,9 +3,9 @@ name: binary-release
 on:
   push:
     branches:
-      - master
+      - 'master'
     tags:
-      - v*
+      - 'v*'
 
 env:
   RELEASE_BIN: megu
@@ -42,7 +42,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --version --release --all-features
+          args: --verbose --release --all-features
 
       - name: Package Binary
         run: 7z a -ttar -so -an ./target/release/${{ env.RELEASE_BIN }} | 7z a -si ./build.tar.gz
@@ -71,7 +71,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --version --release --all-features
+          args: --verbose --release --all-features
 
       - name: Package Binary
         run: 7z a -tzip ./build.zip ./target/release/${{ env.RELEASE_BIN }}.exe
@@ -100,7 +100,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --version --release --all-features
+          args: --verbose --release --all-features
 
       - name: Install p7zip
         run: brew install p7zip
