@@ -1,8 +1,8 @@
-use std::io::{self, Bytes, Read};
-use std::iter::FusedIterator;
 use std::ops::Range;
 use std::str::{from_utf8, from_utf8_unchecked, Utf8Error};
 use thiserror::Error;
+
+use imports::*;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -25,18 +25,6 @@ impl<R: Read> StringStream<R> {
 
 	pub fn new(inner: R) -> Self {
 		Self::with_size(inner, Self::DEFAULT_SIZE)
-	}
-
-	pub fn with_size(inner: R, buffer_size: usize) -> Self {
-		assert!(buffer_size >= 4); // Assert that buffer size cannot be less than the maximum size of UTF-8 string
-
-		let buffer = Vec::with_capacity(buffer_size);
-		let inner = inner.bytes();
-		Self {
-			buffer,
-			inner,
-			ended: false,
-		}
 	}
 
 	pub fn size(&self) -> usize {
@@ -94,39 +82,106 @@ impl<R: Read> StringStream<R> {
 	}
 }
 
-impl<R: Read> Iterator for StringStream<R> {
-	type Item = Result<String>;
+#[cfg(not(feature = "async"))]
+mod imports {
+	use super::*;
+	pub use std::io::{self, Bytes, Read};
+	use std::iter::FusedIterator;
 
-	fn next(&mut self) -> Option<Self::Item> {
-		if self.ended {
-			return None;
+	impl<R: Read> StringStream<R> {
+		pub fn with_size(inner: R, buffer_size: usize) -> Self {
+			assert!(buffer_size >= 4); // Assert that buffer size cannot be less than the maximum size of UTF-8 string
+
+			let buffer = Vec::with_capacity(buffer_size);
+			let inner = inner.bytes();
+			Self {
+				buffer,
+				inner,
+				ended: false,
+			}
 		}
+	}
 
-		let n = self.size_needed();
-		let tmp = self
-			.inner
-			.by_ref()
-			.take(n)
-			.collect::<Result<Vec<_>, _>>()
-			.map_err(Error::from);
+	impl<R: Read> Iterator for StringStream<R> {
+		type Item = Result<String>;
 
-		match tmp {
-			Ok(v) => self.buffer.extend(v),
-			Err(e) => return Some(Err(e)),
+		fn next(&mut self) -> Option<Self::Item> {
+			if self.ended {
+				return None;
+			}
+
+			let n = self.size_needed();
+			let tmp = self
+				.inner
+				.by_ref()
+				.take(n)
+				.collect::<Result<Vec<_>, _>>()
+				.map_err(Error::from);
+
+			match tmp {
+				Ok(v) => self.buffer.extend(v),
+				Err(e) => return Some(Err(e)),
+			}
+
+			if self.buffer.len() < self.size() {
+				self.ended = true;
+			}
+
+			let result = self.parse();
+			Some(result)
 		}
+	}
 
-		if self.buffer.len() < self.size() {
-			self.ended = true;
+	impl<R: Read> FusedIterator for StringStream<R> {}
+}
+
+#[cfg(feature = "async")]
+mod imports {
+	use super::*;
+	use futures::StreamExt;
+	pub use smol::io::{self, AsyncRead as Read, Bytes};
+
+	impl<R: Read + io::AsyncReadExt> StringStream<R> {
+		pub fn with_size(inner: R, buffer_size: usize) -> Self {
+			assert!(buffer_size >= 4); // Assert that buffer size cannot be less than the maximum size of UTF-8 string
+			let buffer = Vec::with_capacity(buffer_size);
+			let inner = inner.bytes();
+			Self {
+				buffer,
+				inner,
+				ended: false,
+			}
 		}
+	}
 
-		let result = self.parse();
-		Some(result)
+	impl<R: Read + Unpin> StringStream<R> {
+		pub async fn next(&mut self) -> Option<Result<String>> {
+			if self.ended {
+				return None;
+			}
+
+			let n = self.size_needed();
+
+			let mut stream = self.inner.by_ref().take(n);
+			while let Some(byte) = stream.next().await {
+				match byte {
+					Ok(v) => self.buffer.push(v),
+					Err(e) => return Some(Err(e.into())),
+				}
+			}
+
+			if self.buffer.len() < self.size() {
+				self.ended = true;
+			}
+
+			let result = self.parse();
+			Some(result)
+		}
 	}
 }
 
-impl<R: Read> FusedIterator for StringStream<R> {}
-
 #[cfg(test)]
+#[cfg(not(feature = "async"))]
 mod tests {
 	use super::*;
 

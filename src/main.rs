@@ -21,7 +21,7 @@ pub fn run(opts: Command) -> Result<()> {
 	}
 
 	let config = config::load_config(&opts.config)?;
-	app::entire_project(&config)
+	app::build_project(&config)
 }
 
 fn init_logger() -> Result<()> {
