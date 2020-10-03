@@ -67,7 +67,7 @@ impl Iterator for Walker {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Link {
 	pub from: PathBuf,
 	pub to: PathBuf,
