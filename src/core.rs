@@ -39,11 +39,26 @@ impl Link {
 
 	pub async fn create(&self) -> Result<File> {
 		let path = &self.to;
-		Self::ensure_parent(path)?;
+		Self::ensure_parent(path).await?;
 		log::debug!("Creating `{}`", path.display());
 		File::create(path)
 			.await
 			.with_context(|| format!("`{}` cannot be created", path.display()))
+	}
+
+	async fn ensure_parent<P>(path: P) -> Result<()>
+	where
+		P: AsRef<Path>,
+	{
+		let path = path.as_ref();
+
+		if let Some(parent) = path.parent() {
+			smol::fs::create_dir_all(parent)
+				.await
+				.with_context(|| format!("Creating directories from `{}`", parent.display()))?;
+		}
+
+		Ok(())
 	}
 }
 
@@ -60,6 +75,20 @@ impl Link {
 		Self::ensure_parent(path)?;
 		log::debug!("Creating `{}`", path.display());
 		File::create(path).with_context(|| format!("`{}` cannot be created", path.display()))
+	}
+
+	fn ensure_parent<P>(path: P) -> Result<()>
+	where
+		P: AsRef<Path>,
+	{
+		let path = path.as_ref();
+
+		if let Some(parent) = path.parent() {
+			std::fs::create_dir_all(parent)
+				.with_context(|| format!("Creating directories from `{}`", parent.display()))?;
+		}
+
+		Ok(())
 	}
 }
 
@@ -93,20 +122,6 @@ impl Link {
 	fn stringify_path(path: &Path) -> Result<&str> {
 		path.to_str()
 			.with_context(|| format!("`{}` is not a valid UTF-8 path", path.display()))
-	}
-
-	fn ensure_parent<P>(path: P) -> Result<()>
-	where
-		P: AsRef<Path>,
-	{
-		let path = path.as_ref();
-
-		if let Some(parent) = path.parent() {
-			std::fs::create_dir_all(parent)
-				.with_context(|| format!("Creating directories from `{}`", parent.display()))?;
-		}
-
-		Ok(())
 	}
 
 	pub fn replace_prefix(path: &Path, from: &Path, to: &Path) -> Result<PathBuf> {

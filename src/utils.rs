@@ -14,29 +14,43 @@ pub enum Error {
 	InvalidString(#[from] Utf8Error),
 }
 
-pub struct StringStream<R> {
-	buffer: Vec<u8>,
-	inner: Bytes<R>,
-	ended: bool,
+pub fn check_expression_block(input: &str) -> bool {
+	input
+		.rfind('[')
+		.map(|n| input[n..].find(']'))
+		.map(|x| x.is_some())
+		.unwrap_or(true)
 }
 
-impl<R: Read> StringStream<R> {
+pub struct StringStream<R, F> {
+	buffer: Vec<u8>,
+	size: usize,
+	inner: Bytes<R>,
+	ended: bool,
+	f: F,
+}
+
+impl<R, F> StringStream<R, F>
+where
+	F: Fn(&str) -> bool,
+	R: Read,
+{
 	pub const DEFAULT_SIZE: usize = 128;
 
-	pub fn new(inner: R) -> Self {
-		Self::with_size(inner, Self::DEFAULT_SIZE)
+	pub fn new(inner: R, f: F) -> Self {
+		Self::with_size(inner, f, Self::DEFAULT_SIZE)
 	}
 
 	pub fn size(&self) -> usize {
-		self.buffer.capacity()
+		self.buffer.len()
 	}
 
 	fn size_needed(&self) -> usize {
-		self.size() - self.buffer.len()
+		self.size
 	}
 
 	fn possible_range(&self) -> Range<usize> {
-		let min = self.size() - 3;
+		let min = self.size().saturating_sub(3);
 		let max = self.size();
 		min..max
 	}
@@ -48,16 +62,19 @@ impl<R: Read> StringStream<R> {
 
 		let result = match result {
 			Ok(v) => Ok(v),
-			Err(e) => {
-				let at = e.valid_up_to();
+			Err(e) => match e.error_len() {
+				Some(_) => Err(e.into()),
+				None => {
+					let at = e.valid_up_to();
 
-				if range.contains(&at) {
-					let result = Self::unfinish_buffer(buffer, at);
-					return Ok(result);
-				} else {
-					Err(e.into())
+					if range.contains(&at) {
+						let result = Self::unfinish_buffer(buffer, at);
+						return Ok(result);
+					} else {
+						Err(e.into())
+					}
 				}
-			}
+			},
 		};
 
 		buffer.clear();
@@ -80,6 +97,16 @@ impl<R: Read> StringStream<R> {
 		buffer.append(&mut tmp);
 		result
 	}
+
+	fn should_stop(&self, input: &Result<String>) -> bool {
+		self.ended || input.as_ref().map(|s| (self.f)(&s)).unwrap_or(true)
+	}
+
+	fn reinsert_content(&mut self, content: &str) {
+		let tmp = self.buffer.clone();
+		self.buffer = content.as_bytes().to_vec();
+		self.buffer.extend(tmp);
+	}
 }
 
 #[cfg(not(feature = "async"))]
@@ -88,8 +115,11 @@ mod imports {
 	pub use std::io::{self, Bytes, Read};
 	use std::iter::FusedIterator;
 
-	impl<R: Read> StringStream<R> {
-		pub fn with_size(inner: R, buffer_size: usize) -> Self {
+	impl<R: Read, F> StringStream<R, F>
+	where
+		F: Fn(&str) -> bool,
+	{
+		pub fn with_size(inner: R, f: F, buffer_size: usize) -> Self {
 			assert!(buffer_size >= 4); // Assert that buffer size cannot be less than the maximum size of UTF-8 string
 
 			let buffer = Vec::with_capacity(buffer_size);
@@ -97,12 +127,18 @@ mod imports {
 			Self {
 				buffer,
 				inner,
+				size: buffer_size,
 				ended: false,
+				f,
 			}
 		}
 	}
 
-	impl<R: Read> Iterator for StringStream<R> {
+	impl<R, F> Iterator for StringStream<R, F>
+	where
+		R: Read,
+		F: Fn(&str) -> bool,
+	{
 		type Item = Result<String>;
 
 		fn next(&mut self) -> Option<Self::Item> {
@@ -110,29 +146,40 @@ mod imports {
 				return None;
 			}
 
-			let n = self.size_needed();
-			let tmp = self
-				.inner
-				.by_ref()
-				.take(n)
-				.collect::<Result<Vec<_>, _>>()
-				.map_err(Error::from);
+			loop {
+				let prev_size = self.size();
+				let n = self.size_needed();
+				let tmp = self
+					.inner
+					.by_ref()
+					.take(n)
+					.collect::<Result<Vec<_>, _>>()
+					.map_err(Error::from);
 
-			match tmp {
-				Ok(v) => self.buffer.extend(v),
-				Err(e) => return Some(Err(e)),
+				match tmp {
+					Ok(v) => self.buffer.extend(v),
+					Err(e) => return Some(Err(e)),
+				}
+
+				let new_size = self.size();
+				if new_size - prev_size < n {
+					self.ended = true;
+				}
+
+				let result = self.parse();
+
+				if self.should_stop(&result) {
+					return Some(result);
+				}
+
+				if let Ok(content) = result {
+					self.reinsert_content(&content);
+				}
 			}
-
-			if self.buffer.len() < self.size() {
-				self.ended = true;
-			}
-
-			let result = self.parse();
-			Some(result)
 		}
 	}
 
-	impl<R: Read> FusedIterator for StringStream<R> {}
+	impl<R: Read, F: Fn(&str) -> bool> FusedIterator for StringStream<R, F> {}
 }
 
 #[cfg(feature = "async")]
@@ -141,56 +188,117 @@ mod imports {
 	use futures::StreamExt;
 	pub use smol::io::{self, AsyncRead as Read, Bytes};
 
-	impl<R: Read + io::AsyncReadExt> StringStream<R> {
-		pub fn with_size(inner: R, buffer_size: usize) -> Self {
+	impl<R, F> StringStream<R, F>
+	where
+		R: Read + io::AsyncReadExt,
+		F: Fn(&str) -> bool,
+	{
+		pub fn with_size(inner: R, f: F, buffer_size: usize) -> Self {
 			assert!(buffer_size >= 4); // Assert that buffer size cannot be less than the maximum size of UTF-8 string
 			let buffer = Vec::with_capacity(buffer_size);
 			let inner = inner.bytes();
 			Self {
 				buffer,
+				size: buffer_size,
 				inner,
 				ended: false,
+				f,
 			}
 		}
 	}
 
-	impl<R: Read + Unpin> StringStream<R> {
+	impl<R, F> StringStream<R, F>
+	where
+		R: Read + Unpin,
+		F: Fn(&str) -> bool,
+	{
 		pub async fn next(&mut self) -> Option<Result<String>> {
 			if self.ended {
 				return None;
 			}
 
-			let n = self.size_needed();
+			loop {
+				let prev_size = self.size();
+				let n = self.size_needed();
 
-			let mut stream = self.inner.by_ref().take(n);
-			while let Some(byte) = stream.next().await {
-				match byte {
-					Ok(v) => self.buffer.push(v),
-					Err(e) => return Some(Err(e.into())),
+				let mut stream = self.inner.by_ref().take(n);
+				while let Some(byte) = stream.next().await {
+					match byte {
+						Ok(v) => self.buffer.push(v),
+						Err(e) => return Some(Err(e.into())),
+					}
+				}
+
+				let new_size = self.size();
+				if new_size - prev_size < n {
+					self.ended = true;
+				}
+
+				let result = self.parse();
+
+				if self.should_stop(&result) {
+					return Some(result);
+				}
+
+				if let Ok(content) = result {
+					self.reinsert_content(&content);
 				}
 			}
-
-			if self.buffer.len() < self.size() {
-				self.ended = true;
-			}
-
-			let result = self.parse();
-			Some(result)
 		}
 	}
 }
 
 #[cfg(test)]
-#[cfg(not(feature = "async"))]
 mod tests {
 	use super::*;
+
+	#[cfg(feature = "async")]
+	fn collect<R, F>(mut stream: StringStream<R, F>) -> Result<String>
+	where
+		R: Read + Unpin,
+		F: Fn(&str) -> bool,
+	{
+		smol::block_on(async {
+			let mut result = String::new();
+			while let Some(n) = stream.next().await {
+				result += n?.as_ref();
+			}
+
+			Ok(result)
+		})
+	}
+
+	#[cfg(not(feature = "async"))]
+	fn collect<R: Read, F: Fn(&str) -> bool>(stream: StringStream<R, F>) -> Result<String> {
+		stream.collect()
+	}
+
+	#[test]
+	#[cfg(not(feature = "async"))]
+	fn partial_template() {
+		let content = "hello [world]";
+		let mut reader = StringStream::with_size(content.as_bytes(), check_expression_block, 8);
+
+		let result = reader.next().unwrap();
+		assert_eq!(result.unwrap(), content);
+	}
+
+	#[test]
+	#[cfg(feature = "async")]
+	fn partial_template() {
+		let content = "hello [world]";
+		let mut reader = StringStream::with_size(content.as_bytes(), check_expression_block, 8);
+
+		let result = smol::block_on(reader.next()).unwrap();
+		assert_eq!(result.unwrap(), content);
+	}
 
 	#[test]
 	fn valid_string() {
 		let content = "Never gonna give you up, Never gonna let you down";
 
-		let reader = StringStream::with_size(content.as_bytes(), 10);
-		let result: Result<String> = reader.collect();
+		let reader = StringStream::with_size(content.as_bytes(), |_| true, 10);
+		let result = collect(reader);
 
 		assert_eq!(result.unwrap(), content);
 	}
@@ -198,8 +306,8 @@ mod tests {
 	#[test]
 	fn invalid_string() {
 		let content = vec![0, 159, 146, 150];
-		let reader = StringStream::with_size(content.as_slice(), 10);
-		let result: Result<String> = reader.collect();
+		let reader = StringStream::with_size(content.as_slice(), |_| true, 10);
+		let result = collect(reader);
 
 		match result {
 			Err(Error::InvalidString(_)) => (),
@@ -215,16 +323,16 @@ mod tests {
 			let content = vec![
 				0xf0, 0x9f, 0x8e, 0x88, 0xf0, 0x9f, 0xa7, 0xa8, 0xf0, 0x9f, 0x8e, 0x89,
 			];
-			let reader = StringStream::with_size(content.as_slice(), x);
-			let result: Result<String> = reader.collect();
+			let reader = StringStream::with_size(content.as_slice(), |_| true, x);
+			let result = collect(reader);
 
 			prop_assert_eq!(result.unwrap(), "🎈🧨🎉");
 		}
 
 		#[test]
 		fn unicode_input(size in 4usize..1024, content in "\\PC*") {
-			let reader = StringStream::with_size(content.as_bytes(), size);
-			let result: Result<String> = reader.collect();
+			let reader = StringStream::with_size(content.as_bytes(), |_| true, size);
+			let result = collect(reader);
 			prop_assert_eq!(result.unwrap(), content);
 		}
 	}
