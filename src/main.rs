@@ -1,26 +1,11 @@
 use anyhow::{Context, Result};
 use colorful::*;
 use flexi_logger::{style, Level, Logger};
-use std::path::PathBuf;
+use megumax::{app, config};
 use structopt::StructOpt;
 
-use megumax::{app, config};
-
-/// A rust CLI that apply global search-and-replace across the entire project when building
-#[derive(Debug, StructOpt)]
-pub struct Command {
-	/// Path to the config file
-	#[structopt(long, short, parse(from_os_str), default_value = "megu.toml")]
-	config: PathBuf,
-
-	/// Include hidden files and directories in the output
-	#[structopt(long, short = "H")]
-	hidden: bool,
-
-	/// No output printed to stdout
-	#[structopt(long, short)]
-	quiet: bool,
-}
+mod feature;
+use feature::Command;
 
 fn main() {
 	let opts = Command::from_args();
@@ -30,14 +15,13 @@ fn main() {
 	}
 }
 
-fn run(opts: Command) -> Result<()> {
+pub fn run(opts: Command) -> Result<()> {
 	if !opts.quiet {
 		init_logger().unwrap();
 	}
 
 	let config = config::load_config(&opts.config)?;
-	app::run(config)?;
-	Ok(())
+	app::entire_project(&config)
 }
 
 fn init_logger() -> Result<()> {

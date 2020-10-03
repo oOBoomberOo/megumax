@@ -1,15 +1,11 @@
 use crate::config::Config;
 use crate::core::{Link, Walker};
 use crate::utils::StringStream;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use path_solver::{Resource, Template};
 use std::io::{BufReader, BufWriter, Read, Write};
 
 mod message;
-#[cfg(feature = "watcher")]
-mod watcher;
-#[cfg(feature = "watcher")]
-pub use watcher::watch;
 
 pub fn entire_project(config: &Config) -> Result<()> {
 	message::config_info(config);
@@ -72,25 +68,12 @@ where
 	Ok(())
 }
 
-fn delete(resource: Resource) -> Result<Resource> {
-	let path = &resource.path;
-
-	if path.is_file() {
-		std::fs::remove_file(path).with_context(|| format!("Remove file `{}`", path.display()))?;
-	} else {
-		std::fs::remove_dir(path)
-			.with_context(|| format!("Remove directory `{}`", path.display()))?;
-	}
-
-	Ok(resource)
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use proptest::prelude::*;
 
-	proptest! {	
+	proptest! {
 		#[test]
 		fn mock_file_creation(content in "\\PC*") {
 			let reader = content.as_bytes();

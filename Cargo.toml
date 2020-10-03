@@ -16,16 +16,26 @@ path = "src/main.rs"
 
 [dependencies]
 structopt = "0.3"
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1.0.116", features = ["derive"] }
 toml = "0.5"
 shellexpand = "2.0.0"
 ignore = "0.4.16"
 path-solver = { path = "./path-solver" }
 anyhow = "1.0.32"
 colorful = "0.2.1"
-rayon = "1.4.1"
 flexi_logger = "0.16.1"
 log = "0.4.11"
+thiserror = "1.0.20"
+
+[dependencies.rayon]
+version = "1.4.1"
+optional = true
 
 [workspace]
-members = [ "./path-solver" ]
+members = ["./path-solver"]
+
+[features]
+default = ["rayon"]
+
+[dev-dependencies]
+proptest = "0.10.1"

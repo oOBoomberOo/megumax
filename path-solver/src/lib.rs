@@ -1,8 +1,8 @@
+pub mod error;
 pub mod resource;
 pub mod solver;
 pub mod template;
 pub mod variant;
-pub mod error;
 
 pub use resource::{Resource, Resources};
 pub use solver::Solver;

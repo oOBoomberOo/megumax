@@ -1,6 +1,6 @@
+use crate::error::KeyLookUpError;
 use crate::resource::Resources;
 use crate::solver::Solver;
-use crate::error::KeyLookUpError;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
@@ -72,8 +72,7 @@ impl Pool {
 		let mut result = Vec::new();
 
 		for key in keys {
-			let variants = self.get(key)
-				.ok_or_else(|| KeyLookUpError::new(key))?;
+			let variants = self.get(key).ok_or_else(|| KeyLookUpError::new(key))?;
 			result.push(variants);
 		}
 
@@ -91,9 +90,13 @@ impl Pool {
 			.collect()
 	}
 
-	pub fn template_resources<P: Into<String>>(&self, path: P) -> Result<Resources, KeyLookUpError> {
+	pub fn template_resources<P: Into<String>>(
+		&self,
+		path: P,
+	) -> Result<Resources, KeyLookUpError> {
 		let path = path.into();
-		let keys = self.capture(&path)
+		let keys = self
+			.capture(&path)
 			.into_iter()
 			.collect::<HashSet<_>>() // De-duplicate keys
 			.into_iter()
