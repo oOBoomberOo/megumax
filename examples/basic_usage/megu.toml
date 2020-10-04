@@ -1,0 +1,6 @@
+[build]
+src = "src/"
+output = "build/"
+
+[keys]
+foo = "This text is generated using megumax"

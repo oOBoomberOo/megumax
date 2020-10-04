@@ -1,0 +1,7 @@
+[build]
+src = "src/"
+output = "build/"
+
+[template]
+variant = ['foo', 'bar', 'baz']
+color = ['red', 'green', 'blue']
