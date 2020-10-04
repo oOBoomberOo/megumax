@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::core::{Link, Walker};
 use crate::utils::StringStream;
 use anyhow::Result;
-use path_solver::{Resource, Template};
+use megumax_template::{Resource, Template};
 use std::io::{BufReader, BufWriter, Read, Write};
 
 pub fn build_project(config: &Config) -> Result<()> {

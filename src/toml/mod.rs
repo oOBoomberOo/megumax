@@ -1,5 +1,5 @@
 use super::config::{resolve_symbol, Config, ConfigBuilder};
-use path_solver::{Pool, Template};
+use megumax_template::{Pool, Template};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;

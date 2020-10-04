@@ -1,7 +1,7 @@
 use super::special;
 use crate::share::{create_file, open_file, stringify_path, File};
 use anyhow::{Context, Result};
-use path_solver::{Pool, Resource};
+use megumax_template::{Pool, Resource};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]

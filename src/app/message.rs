@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::core::Link;
 use colorful::*;
-use path_solver::Resource;
+use megumax_template::Resource;
 use std::path::Path;
 
 pub fn create(link: &Link) {

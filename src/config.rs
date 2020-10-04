@@ -1,7 +1,7 @@
 use crate::share::replace_prefix;
 use crate::toml::ConfigFormat;
 use anyhow::{Context, Result};
-use path_solver::{Pool, Template};
+use megumax_template::{Pool, Template};
 use std::path::{Path, PathBuf};
 
 pub fn load_config<P: AsRef<Path>>(path: P) -> Result<Config> {

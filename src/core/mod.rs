@@ -7,7 +7,7 @@ pub use link::*;
 pub use walker::*;
 
 pub mod special {
-	use path_solver::Resource;
+	use megumax_template::Resource;
 
 	pub const NTH_TEMPLATE: &str = "[nth]";
 

@@ -4,7 +4,7 @@ use crate::core::{Link, Walker};
 use crate::utils::StringStream;
 use anyhow::Result;
 use futures::prelude::*;
-use path_solver::{Resource, Template};
+use megumax_template::{Resource, Template};
 use smol::io::{AsyncRead, AsyncWrite, BufReader, BufWriter};
 
 pub fn build_project(config: &Config) -> Result<()> {

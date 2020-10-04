@@ -20,7 +20,7 @@ serde = { version = "1.0.116", features = ["derive"] }
 toml = "0.5"
 shellexpand = "2.0.0"
 ignore = "0.4.16"
-path-solver = { path = "./path-solver" }
+megumax-template = { path = "./crates/megumax-template", version = "0.1.0" }
 anyhow = "1.0.32"
 colorful = "0.2.1"
 flexi_logger = "0.16.1"
@@ -38,7 +38,7 @@ version = "1.2.2"
 optional = true
 
 [workspace]
-members = ["./path-solver"]
+members = ["./crates/megumax-template"]
 
 [features]
 default = []
