@@ -6,7 +6,7 @@ edition = "2018"
 description = "Simple CLI tool for search-and-replace across the entire project"
 readme = "README.md"
 repository = "https://github.com/oOBoomberOo/megumax"
-license = "MIT"
+license = "MIT / Apache-2.0"
 keywords = ["megumin", "cli", "replace", "template"]
 categories = ["command-line-utilities"]
 
