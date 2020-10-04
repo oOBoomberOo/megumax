@@ -108,6 +108,12 @@ impl Pool {
 	}
 }
 
+impl Default for Pool {
+	fn default() -> Self {
+		Self::default_rule()
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

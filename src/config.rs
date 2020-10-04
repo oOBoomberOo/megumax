@@ -1,5 +1,5 @@
-use super::toml::ConfigFormat;
-use crate::core::Link;
+use crate::share::replace_prefix;
+use crate::toml::ConfigFormat;
 use anyhow::{Context, Result};
 use path_solver::{Pool, Template};
 use std::path::{Path, PathBuf};
@@ -26,6 +26,46 @@ pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<String> {
 		.with_context(|| format!("Cannot find config file at `{}`", path.display()))
 }
 
+#[derive(Debug, Default)]
+pub struct ConfigBuilder {
+	source: PathBuf,
+	dest: PathBuf,
+	config_path: PathBuf,
+	template: Pool,
+	keys: Template,
+}
+
+impl ConfigBuilder {
+	pub fn new(source: PathBuf, dest: PathBuf, config_path: PathBuf) -> Self {
+		Self {
+			source,
+			dest,
+			config_path,
+			..Default::default()
+		}
+	}
+
+	pub fn with_template(mut self, template: Pool) -> Self {
+		self.template = template;
+		self
+	}
+
+	pub fn with_keys(mut self, keys: Template) -> Self {
+		self.keys = keys;
+		self
+	}
+
+	pub fn build(self) -> Config {
+		Config {
+			source: self.source,
+			dest: self.dest,
+			config_path: self.config_path,
+			template: self.template,
+			keys: self.keys,
+		}
+	}
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
 	pub source: PathBuf,
@@ -36,24 +76,8 @@ pub struct Config {
 }
 
 impl Config {
-	pub fn new(
-		source: PathBuf,
-		dest: PathBuf,
-		config_path: PathBuf,
-		template: Pool,
-		keys: Template,
-	) -> Self {
-		Self {
-			source,
-			dest,
-			config_path,
-			template,
-			keys,
-		}
-	}
-
 	pub fn replace_prefix(&self, path: &Path) -> Result<PathBuf> {
-		Link::replace_prefix(path, &self.source, &self.dest)
+		replace_prefix(path, &self.source, &self.dest)
 	}
 }
 

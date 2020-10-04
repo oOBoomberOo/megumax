@@ -41,6 +41,21 @@ where
 		Self::with_size(inner, f, Self::DEFAULT_SIZE)
 	}
 
+	pub fn with_size(inner: R, f: F, buffer_size: usize) -> Self {
+		assert!(buffer_size >= 4); // Assert that buffer size cannot be less than the maximum size of UTF-8 string
+
+		let buffer = Vec::with_capacity(buffer_size);
+		let inner = create_reader(inner);
+
+		Self {
+			buffer,
+			inner,
+			size: buffer_size,
+			ended: false,
+			f,
+		}
+	}
+
 	pub fn size(&self) -> usize {
 		self.buffer.len()
 	}
@@ -115,23 +130,8 @@ mod imports {
 	pub use std::io::{self, Bytes, Read};
 	use std::iter::FusedIterator;
 
-	impl<R: Read, F> StringStream<R, F>
-	where
-		F: Fn(&str) -> bool,
-	{
-		pub fn with_size(inner: R, f: F, buffer_size: usize) -> Self {
-			assert!(buffer_size >= 4); // Assert that buffer size cannot be less than the maximum size of UTF-8 string
-
-			let buffer = Vec::with_capacity(buffer_size);
-			let inner = inner.bytes();
-			Self {
-				buffer,
-				inner,
-				size: buffer_size,
-				ended: false,
-				f,
-			}
-		}
+	pub fn create_reader<R: Read>(rdr: R) -> Bytes<R> {
+		rdr.bytes()
 	}
 
 	impl<R, F> Iterator for StringStream<R, F>
@@ -149,6 +149,7 @@ mod imports {
 			loop {
 				let prev_size = self.size();
 				let n = self.size_needed();
+
 				let tmp = self
 					.inner
 					.by_ref()
@@ -185,26 +186,12 @@ mod imports {
 #[cfg(feature = "async")]
 mod imports {
 	use super::*;
+	pub use futures::prelude::AsyncRead as Read;
 	use futures::StreamExt;
-	pub use smol::io::{self, AsyncRead as Read, Bytes};
+	pub use smol::io::{self, AsyncReadExt, Bytes};
 
-	impl<R, F> StringStream<R, F>
-	where
-		R: Read + io::AsyncReadExt,
-		F: Fn(&str) -> bool,
-	{
-		pub fn with_size(inner: R, f: F, buffer_size: usize) -> Self {
-			assert!(buffer_size >= 4); // Assert that buffer size cannot be less than the maximum size of UTF-8 string
-			let buffer = Vec::with_capacity(buffer_size);
-			let inner = inner.bytes();
-			Self {
-				buffer,
-				size: buffer_size,
-				inner,
-				ended: false,
-				f,
-			}
-		}
+	pub fn create_reader<R: Read>(rdr: R) -> Bytes<R> {
+		rdr.bytes()
 	}
 
 	impl<R, F> StringStream<R, F>
@@ -221,7 +208,9 @@ mod imports {
 				let prev_size = self.size();
 				let n = self.size_needed();
 
-				let mut stream = self.inner.by_ref().take(n);
+				let mut stream = self.inner.by_ref();
+				let mut stream = StreamExt::take(&mut stream, n);
+
 				while let Some(byte) = stream.next().await {
 					match byte {
 						Ok(v) => self.buffer.push(v),

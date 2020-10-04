@@ -1,4 +1,4 @@
-use super::config::{resolve_symbol, Config};
+use super::config::{resolve_symbol, Config, ConfigBuilder};
 use path_solver::{Pool, Template};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -18,10 +18,14 @@ pub struct ConfigFormat {
 impl ConfigFormat {
 	pub fn compile(self, path: PathBuf) -> Config {
 		log::debug!("Compile config format...");
-		let (src, build) = self.build.compile();
+		let (src, dest) = self.build.compile();
 		let template = self.template.compile();
 		let keys = self.keys.compile();
-		Config::new(src, build, path, template, keys)
+
+		ConfigBuilder::new(src, dest, path)
+			.with_template(template)
+			.with_keys(keys)
+			.build()
 	}
 }
 
